@@ -34,17 +34,23 @@ jobs:
       run: docker load < docker-image.tar.gz
     - name: Start Docker container
       run: docker run -d --name app-container -p 3456:3456 ping-pong-tracker:latest
+    - name: Check container status
+      run: |
+        sleep 5
+        docker ps -a
+        docker logs app-container
     - name: Wait for app to be healthy
       run: |
-        for i in {1..30}; do
+        for i in {1..60}; do
           if curl -f http://localhost:3456/ > /dev/null 2>&1; then
             echo "App is healthy"
             exit 0
           fi
-          echo "Waiting for app... ($i/30)"
-          sleep 2
+          echo "Waiting for app... ($i/60)"
+          sleep 1
         done
-        echo "App failed to become healthy"
+        echo "App failed to become healthy after 60 seconds"
+        docker logs app-container
         exit 1
     - uses: actions/setup-node@v5
       with:
