@@ -33,7 +33,15 @@ jobs:
     - name: Load Docker image
       run: docker load < docker-image.tar.gz
     - name: Start Docker container
-      run: docker run -d --name app-container -p 3456:3456 ping-pong-tracker:latest
+      # Mount the repository `instance` folder into the container so the SQLite DB
+      # and other runtime files persist across container restarts and are visible
+      # to the workflow runner. Use the workspace path provided by Actions.
+      run: |
+        docker run -d \
+          --name app-container \
+          -p 3456:3456 \
+          -v ${{ github.workspace }}/instance:/app/instance \
+          ping-pong-tracker:latest
     - name: Check container status
       run: |
         sleep 5

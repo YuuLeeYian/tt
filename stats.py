@@ -1,8 +1,20 @@
-from sqlalchemy import text
+from sqlalchemy import text, select
 
 class StreakCalculator:
     def __init__(self, db_session):
         self.db = db_session
+        # Try to detect whether the underlying DB dialect likely supports
+        # the window-function SQL used below. Many deployments use SQLite
+        # (or SQLite builds) that may not support the exact functions or
+        # SQL features; in that case prefer the Python fallback which
+        # operates on ORM objects and is always supported.
+        try:
+            bind = getattr(db_session, 'get_bind', lambda: None)()
+            dialect_name = getattr(getattr(bind, 'dialect', None), 'name', None)
+            # If dialect is sqlite, prefer Python fallback to avoid dialect issues
+            self._prefer_sql = False if dialect_name == 'sqlite' else True
+        except Exception:
+            self._prefer_sql = True
 
     def get_current_and_best(self, player_id, games=None):
         """Return (current_streak, best_win_streak, worst_loss_streak) for player_id.
@@ -45,7 +57,20 @@ class StreakCalculator:
                     loss_run = 0
             return current, best_win, worst_loss
 
-        # Otherwise, try SQL (window functions) for performance
+        # Otherwise, try SQL (window functions) for performance if preferred
+        if not getattr(self, '_prefer_sql', True):
+            # Load games via modern SQLAlchemy 2.0-style API and fallback to Python
+            from models import Game
+            stmt = select(Game).where((Game.player1_id == player_id) | (Game.player2_id == player_id)).order_by(Game.played_at.desc())
+            try:
+                games = list(self.db.scalars(stmt))
+            except Exception:
+                try:
+                    games = self.db.query(Game).filter((Game.player1_id == player_id) | (Game.player2_id == player_id)).order_by(Game.played_at.desc()).all()
+                except Exception:
+                    games = []
+            return self.get_current_and_best(player_id, games=games)
+
         try:
             # Current streak (positive for wins, negative for losses)
             sql_current = text("""
@@ -124,8 +149,16 @@ class StreakCalculator:
             return current, best_win, worst_loss
         except Exception:
             # Fallback: Python scanning via ORM if SQL fails or DB lacks window functions
-            # Load games via ORM
+            # Load games via modern SQLAlchemy 2.0-style API (Session.scalars + select)
             from models import Game
-            games = self.db.query(Game).filter((Game.player1_id == player_id) | (Game.player2_id == player_id)).order_by(Game.played_at.desc()).all()
+            stmt = select(Game).where((Game.player1_id == player_id) | (Game.player2_id == player_id)).order_by(Game.played_at.desc())
+            try:
+                games = list(self.db.scalars(stmt))
+            except Exception:
+                # As a last resort, try the legacy query API if available
+                try:
+                    games = self.db.query(Game).filter((Game.player1_id == player_id) | (Game.player2_id == player_id)).order_by(Game.played_at.desc()).all()
+                except Exception:
+                    games = []
             # reuse the games branch
             return self.get_current_and_best(player_id, games=games)

@@ -3,9 +3,12 @@ from models import db, Player, Game
 try:
     from stats import StreakCalculator
     STREAK_CALCULATOR_AVAILABLE = True
-except ImportError:
+except Exception as e:
+    # Catch any error when importing stats (ImportError, SyntaxError, missing deps, etc.)
     STREAK_CALCULATOR_AVAILABLE = False
-    print("Warning: stats.py not found - streak features will be disabled")
+    import traceback
+    print("Warning: failed to import stats - streak features will be disabled")
+    traceback.print_exc()
 from datetime import datetime, timedelta, timezone
 import math
 import os
