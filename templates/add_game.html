@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Add Game - Overengineered Ping Pong Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>🎮 Record New Game</h2>
+</div>
+
+{% if players|length < 2 %}
+<div class="empty-state">
+    <p>You need at least 2 players to record a game.</p>
+    <a href="{{ url_for('add_player') }}" class="btn btn-primary">Add Players</a>
+</div>
+{% else %}
+<div class="form-container">
+    <form method="POST" action="{{ url_for('add_game') }}">
+        <div class="form-group">
+            <label for="winner_id">🏆 Winner:</label>
+            <select id="winner_id" name="winner_id" required>
+                <option value="">Select Winner</option>
+                {% for player in players %}
+                <option value="{{ player.id }}">{{ player.name }} (ELO: {{ player.elo_rating }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="vs-divider">VS</div>
+        
+        <div class="form-group">
+            <label for="loser_id">Loser:</label>
+            <select id="loser_id" name="loser_id" required>
+                <option value="">Select Loser</option>
+                {% for player in players %}
+                <option value="{{ player.id }}">{{ player.name }} (ELO: {{ player.elo_rating }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Record Game</button>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+        
+        <div class="info-box">
+            <p><strong>ℹ️ Info:</strong> ELO ratings will be automatically calculated based on the game result.</p>
+        </div>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

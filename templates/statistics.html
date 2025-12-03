@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics - Overengineered Ping Pong Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>📈 Statistics</h2>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-box">
+        <div class="stat-icon">👥</div>
+        <div class="stat-number">{{ total_players }}</div>
+        <div class="stat-title">Total Players</div>
+    </div>
+    
+    <div class="stat-box">
+        <div class="stat-icon">🎮</div>
+        <div class="stat-number">{{ total_games }}</div>
+        <div class="stat-title">Total Games</div>
+    </div>
+    
+    {% if top_player %}
+    <div class="stat-box highlight">
+        <div class="stat-icon">🏆</div>
+        <div class="stat-number">{{ top_player.elo_rating }}</div>
+        <div class="stat-title">
+            Highest ELO<br>
+            <a href="{{ url_for('player_history', player_id=top_player.id) }}">{{ top_player.name }}</a>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if most_active %}
+    <div class="stat-box highlight">
+        <div class="stat-icon">⚡</div>
+        <div class="stat-number">{{ most_active.games_played }}</div>
+        <div class="stat-title">
+            Most Games<br>
+            <a href="{{ url_for('player_history', player_id=most_active.id) }}">{{ most_active.name }}</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="info-section">
+    <h3>📘 About ELO Rating System</h3>
+    <p>
+        The ELO rating system is a method for calculating the relative skill levels of players. 
+        Players start at a rating of 1500. When you win against a higher-rated opponent, you gain more points. 
+        When you lose against a lower-rated opponent, you lose more points.
+    </p>
+    
+    <div class="elo-details-grid">
+        <div class="elo-box">
+            <h4>🧮 How It Works</h4>
+            <p><strong>Step 1: Calculate Expected Score</strong></p>
+            <div class="formula-box">
+                E = 1 / (1 + 10<sup>(opponent_rating - your_rating) / 400</sup>)
+            </div>
+            <p class="formula-description">This gives the probability (0-1) that you will win based on rating difference.</p>
+            
+            <p><strong>Step 2: Update Rating After Game</strong></p>
+            <div class="formula-box">
+                R<sub>new</sub> = R<sub>old</sub> + K × (Actual - Expected)
+            </div>
+            <p class="formula-description">K=32 determines rating volatility. Actual is 1 for win, 0 for loss.</p>
+        </div>
+        
+        <div class="elo-box">
+            <h4>⚙️ System Parameters</h4>
+            <div class="parameter-list">
+                <div class="parameter-item">
+                    <span class="param-label">K-Factor</span>
+                    <span class="param-value">32</span>
+                    <span class="param-desc">Rating change per game</span>
+                </div>
+                <div class="parameter-item">
+                    <span class="param-label">Starting Rating</span>
+                    <span class="param-value">1500</span>
+                    <span class="param-desc">Default for new players</span>
+                </div>
+                <div class="parameter-item">
+                    <span class="param-label">Win Score</span>
+                    <span class="param-value">1.0</span>
+                    <span class="param-desc">Actual score for winner</span>
+                </div>
+                <div class="parameter-item">
+                    <span class="param-label">Loss Score</span>
+                    <span class="param-value">0.0</span>
+                    <span class="param-desc">Actual score for loser</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="elo-box example-box">
+            <h4>💡 Example Scenario</h4>
+            <div class="example-scenario">
+                <div class="scenario-players">
+                    <div class="scenario-player">
+                        <strong>Player A</strong>
+                        <div class="rating-badge">1600</div>
+                    </div>
+                    <span class="vs-text">VS</span>
+                    <div class="scenario-player">
+                        <strong>Player B</strong>
+                        <div class="rating-badge">1400</div>
+                    </div>
+                </div>
+                
+                <div class="scenario-outcome">
+                    <p><strong>If A wins (expected):</strong></p>
+                    <p>Expected: 0.76 → A gains ~4 points, B loses ~4</p>
+                </div>
+                
+                <div class="scenario-outcome upset">
+                    <p><strong>If B wins (upset!):</strong></p>
+                    <p>Expected: 0.24 → B gains ~28 points, A loses ~28</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

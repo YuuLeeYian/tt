@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Rankings - Overengineered Ping Pong Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>🏆 Current Rankings</h2>
+</div>
+
+{% if players %}
+<div class="table-container">
+    <table class="rankings-table">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>ELO Rating</th>
+                <th>Games</th>
+                <th>Wins</th>
+                <th>Losses</th>
+                <th>Win Rate</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for player in players %}
+            <tr>
+                <td class="rank">
+                    {% if loop.index == 1 %}
+                        <span class="medal gold">🥇</span>
+                    {% elif loop.index == 2 %}
+                        <span class="medal silver">🥈</span>
+                    {% elif loop.index == 3 %}
+                        <span class="medal bronze">🥉</span>
+                    {% else %}
+                        {{ loop.index }}
+                    {% endif %}
+                </td>
+                <td class="player-name">
+                    <a href="{{ url_for('player_history', player_id=player.id) }}">
+                        {{ player.name }}
+                    </a>
+                </td>
+                <td class="elo">{{ player.elo_rating }}</td>
+                <td>{{ player.games_played }}</td>
+                <td class="wins">{{ player.wins }}</td>
+                <td class="losses">{{ player.losses }}</td>
+                <td>
+                    {% if player.games_played > 0 %}
+                        {{ "%.1f"|format((player.wins / player.games_played * 100)) }}%
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if player.games_played == 0 %}
+                    <form method="POST" action="{{ url_for('delete_player', player_id=player.id) }}" style="display: inline;" onsubmit="return confirm('Delete {{ player.name }}?');">
+                        <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                    </form>
+                    {% else %}
+                    <a href="{{ url_for('player_history', player_id=player.id) }}" class="btn btn-small">View</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No players yet. <a href="{{ url_for('add_player') }}">Add your first player!</a></p>
+</div>
+{% endif %}
+{% endblock %}

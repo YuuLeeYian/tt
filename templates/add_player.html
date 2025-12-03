@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Add Player - Overengineered Ping Pong Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>➕ Add New Player</h2>
+</div>
+
+<div class="form-container">
+    <form method="POST" action="{{ url_for('add_player') }}">
+        <div class="form-group">
+            <label for="name">Player Name:</label>
+            <input type="text" id="name" name="name" required placeholder="Enter player name" autofocus>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Add Player</button>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+        
+        <div class="info-box">
+            <p><strong>ℹ️ Info:</strong> New players start with an ELO rating of 1500.</p>
+        </div>
+    </form>
+</div>
+{% endblock %}

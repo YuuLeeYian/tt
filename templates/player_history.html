@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}{{ player.name }} - History{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>📊 {{ player.name }}'s Profile</h2>
+</div>
+<!-- ELO Chart -->
+<details class="chart-card">
+    <summary class="chart-toggle">
+        <svg class="toggle-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7 8L10 11L13 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="chart-title-group">
+            <h3>ELO Rating Progression</h3>
+            <p class="chart-subtitle">Smooth line shows rating at each game.</p>
+        </div>
+    </summary>
+    <div class="chart-content">
+        <div class="chart-header">
+            <fieldset class="period-buttons" aria-label="Select time period">
+                <button class="period-btn active" data-period="all" aria-pressed="true">All Time</button>
+                <button class="period-btn" data-period="month" aria-pressed="false">30 Days</button>
+                <button class="period-btn" data-period="week" aria-pressed="false">7 Days</button>
+                <button class="period-btn" data-period="day" aria-pressed="false">24 Hours</button>
+                <button class="period-btn" data-period="hour" aria-pressed="false">Last Hour</button>
+            </fieldset>
+        </div>
+        <div class="chart-body">
+            <div id="chartLoading" class="chart-loading" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p>Loading chart data...</p>
+            </div>
+            <canvas id="eloChart" aria-label="ELO rating over time"></canvas>
+        </div>
+    </div>
+</details>
+
+<div class="player-stats">
+    <div class="stat-card">
+        <div class="stat-value">{{ player.elo_rating }}</div>
+        <div class="stat-label">ELO Rating</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ player.games_played }}</div>
+        <div class="stat-label">Games Played</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value wins">{{ player.wins }}</div>
+        <div class="stat-label">Wins</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value losses">{{ player.losses }}</div>
+        <div class="stat-label">Losses</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">
+            {% if player.games_played > 0 %}
+                {{ "%.1f"|format((player.wins / player.games_played * 100)) }}%
+            {% else %}
+                0%
+            {% endif %}
+        </div>
+        <div class="stat-label">Win Rate</div>
+    </div>
+</div>
+
+<div class="page-header">
+    <h3>Game History</h3>
+</div>
+
+{% if games %}
+<div class="table-container">
+    <table class="history-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Opponent</th>
+                <th>Result</th>
+                <th>ELO Change</th>
+                <th>ELO After</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for game in games %}
+            <tr>
+                <td>{{ game.played_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    {% if game.player1_id == player.id %}
+                        <a href="{{ url_for('player_history', player_id=game.player2_id) }}">
+                            {{ game.player2.name }}
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('player_history', player_id=game.player1_id) }}">
+                            {{ game.player1.name }}
+                        </a>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if game.winner_id == player.id %}
+                        <span class="result-win">WIN</span>
+                    {% else %}
+                        <span class="result-loss">LOSS</span>
+                    {% endif %}
+                </td>
+                <td class="elo-change">
+                    {% if game.player1_id == player.id %}
+                        {% set change = game.player1_elo_after - game.player1_elo_before %}
+                    {% else %}
+                        {% set change = game.player2_elo_after - game.player2_elo_before %}
+                    {% endif %}
+                    
+                    {% if change > 0 %}
+                        <span class="positive">+{{ change }}</span>
+                    {% else %}
+                        <span class="negative">{{ change }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if game.player1_id == player.id %}
+                        {{ game.player1_elo_after }}
+                    {% else %}
+                        {{ game.player2_elo_after }}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No games played yet.</p>
+</div>
+{% endif %}
+
+<script>
+let eloChart = null;
+let eloCtx = null;
+
+function getTimeScale(period){
+    if(period === 'hour'){
+        return { type: 'time', time: { unit: 'minute', displayFormats: { minute: 'HH:mm', hour: 'HH:mm' } } };
+    }
+    if(period === 'day'){
+        return { type: 'time', time: { unit: 'hour', displayFormats: { hour: 'MMM d HH:mm', day: 'MMM d' } } };
+    }
+    if(period === 'week' || period === 'month'){
+        return { type: 'time', time: { unit: 'day', displayFormats: { day: 'MMM d' } } };
+    }
+    return { type: 'time', time: { unit: 'month', displayFormats: { month: 'MMM yyyy' } } };
+}
+
+function setActive(period){
+    const btns = document.querySelectorAll('.period-btn');
+    for (const b of btns){
+        b.classList.toggle('active', b.dataset.period === period);
+    }
+}
+
+async function load(period='all'){
+    setActive(period);
+    const loader = document.getElementById('chartLoading');
+    loader.style.display = 'flex';
+    
+    const res = await fetch(`/api/player/{{ player.id }}/elo_history?period=${period}`);
+    const json = await res.json();
+    const points = json.data.map(p => ({ x: p.date, y: p.elo, meta: p }));
+    const scaleOpts = getTimeScale(period);
+    
+    loader.style.display = 'none';
+    if(eloChart){ eloChart.destroy(); }
+    eloChart = new Chart(eloCtx, {
+        type: 'line',
+        data: { datasets: [{
+            label: json.player_name + ' ELO',
+            data: points,
+            stepped: false,
+            borderColor: '#2563eb',
+            backgroundColor: 'transparent',
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            fill: false,
+            tension: 0.4,
+            cubicInterpolationMode: 'monotone'
+        }]},
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 400 },
+            scales: {
+                x: scaleOpts,
+                y: {
+                    beginAtZero: false,
+                    ticks: { callback: v => v },
+                    title: { display: true, text: 'ELO' }
+                }
+            },
+            plugins: {
+                annotation: {
+                    annotations: {
+                        startLine: {
+                            type: 'line',
+                            yMin: 1500,
+                            yMax: 1500,
+                            borderColor: 'rgba(0, 0, 0, 0.8)',
+                            borderWidth: 2,
+                            borderDash: [6, 4]
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        title: items => {
+                            if(!items[0]) return '';
+                            const pt = items[0].raw.meta;
+                            if(pt.type === 'initial') return 'Starting ELO';
+                            return new Date(items[0].parsed.x).toLocaleString();
+                        },
+                        label: item => {
+                            const pt = item.raw.meta;
+                            if(pt.type === 'initial') return 'ELO: 1500';
+                            return [
+                                `${pt.result === 'win' ? '✓ WIN' : '✗ LOSS'} vs ${pt.opponent}`,
+                                `ELO: ${pt.elo} (${pt.elo_change >= 0 ? '+' : ''}${pt.elo_change})`
+                            ];
+                        }
+                    }
+                },
+                legend: { display: false }
+            }
+        }
+    });
+}
+
+let chartLoaded = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const chartCard = document.querySelector('.chart-card');
+    const btns = document.querySelectorAll('.period-btn');
+    
+    chartCard.addEventListener('toggle', () => {
+        if (chartCard.open && !chartLoaded) {
+            eloCtx = document.getElementById('eloChart').getContext('2d');
+            load('all');
+            chartLoaded = true;
+        }
+    });
+    
+    for (const btn of btns){
+        btn.addEventListener('click', () => {
+            load(btn.dataset.period);
+            for (const b of btns){ b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); }
+        });
+    }
+});
+</script>
+{% endblock %}
