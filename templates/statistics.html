@@ -41,6 +41,28 @@
         </div>
     </div>
     {% endif %}
+    
+    {% if hottest_streak_player and hottest_streak > 0 %}
+    <div class="stat-box highlight">
+        <div class="stat-icon">🔥</div>
+        <div class="stat-number">{{ hottest_streak }}</div>
+        <div class="stat-title">
+            (Current) Hottest Streak<br>
+            <a href="{{ url_for('player_history', player_id=hottest_streak_player.id) }}">{{ hottest_streak_player.name }}</a>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if best_streak_player and best_streak_all_time > 0 %}
+    <div class="stat-box highlight">
+        <div class="stat-icon">📈</div>
+        <div class="stat-number">{{ best_streak_all_time }}</div>
+        <div class="stat-title">
+            Best Streak Ever<br>
+            <a href="{{ url_for('player_history', player_id=best_streak_player.id) }}">{{ best_streak_player.name }}</a>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <div class="info-section">

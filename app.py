@@ -1,5 +1,14 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from models import db, Player, Game
+try:
+    from stats import StreakCalculator
+    STREAK_CALCULATOR_AVAILABLE = True
+except Exception as e:
+    # Catch any error when importing stats (ImportError, SyntaxError, missing deps, etc.)
+    STREAK_CALCULATOR_AVAILABLE = False
+    import traceback
+    print("Warning: failed to import stats - streak features will be disabled")
+    traceback.print_exc()
 from datetime import datetime, timedelta, timezone
 import math
 import os
@@ -172,13 +181,43 @@ def add_game():
 def player_history(player_id):
     """Show game history for a specific player"""
     player = Player.query.get_or_404(player_id)
-    
-    # Get all games for this player
-    games = Game.query.filter(
-        (Game.player1_id == player_id) | (Game.player2_id == player_id)
-    ).order_by(Game.played_at.desc()).all()
-    
-    return render_template('player_history.html', player=player, games=games)
+
+    # Optional compare player id from query string (GET)
+    compare_id = request.args.get('compare_id', type=int)
+
+    # Provide a list of players for the compare dropdown
+    players = Player.query.order_by(Player.name).all()
+
+    # Base query: games involving this player
+    base_q = Game.query.filter((Game.player1_id == player_id) | (Game.player2_id == player_id))
+
+    compare_player = None
+    if compare_id:
+        compare_player = Player.query.get(compare_id)
+        if compare_player:
+            # further restrict to games between the two players
+            base_q = base_q.filter((Game.player1_id == compare_id) | (Game.player2_id == compare_id))
+
+    games = base_q.order_by(Game.played_at.desc()).all()
+
+    # Compute stats based on the filtered games
+    games_played = len(games)
+    wins = sum(1 for g in games if hasattr(g, 'winner_id') and g.winner_id == player.id)
+    losses = games_played - wins
+    win_rate = (wins / games_played * 100) if games_played > 0 else 0
+
+    # Calculate streaks
+    current_streak = 0
+    best_streak = 0
+    worst_streak = 0
+    if STREAK_CALCULATOR_AVAILABLE and games_played > 0:
+        try:
+            streaker = StreakCalculator(db.session)
+            current_streak, best_streak, worst_streak = streaker.get_current_and_best(player_id, games=games)
+        except Exception as e:
+            print(f"Warning: Could not calculate streaks for player {player_id}: {e}")
+
+    return render_template('player_history.html', player=player, games=games, players=players, compare_player=compare_player, compare_id=compare_id, games_played=games_played, wins=wins, losses=losses, win_rate=win_rate, current_streak=current_streak, best_streak=best_streak, worst_streak=worst_streak)
 
 @app.route('/recent_games')
 def recent_games():
@@ -198,11 +237,59 @@ def statistics():
     # Get most active player
     most_active = Player.query.order_by(Player.games_played.desc()).first()
     
+    # Calculate current winning streaks for all players
+    players = Player.query.all()
+    hottest_streak_player = None
+    max_streak = 0
+    coldest_streak_player = None
+    min_streak = 0
+    best_streak_player = None
+    best_streak_all_time = 0
+    
+    if STREAK_CALCULATOR_AVAILABLE:
+        try:
+            streaker = StreakCalculator(db.session)
+            for player in players:
+                # Get all games for this player, ordered by most recent first
+                games = Game.query.filter(
+                    (Game.player1_id == player.id) | (Game.player2_id == player.id)
+                ).order_by(Game.played_at.desc()).all()
+
+                # Use the streak helper with the already-fetched games to avoid extra queries
+                current_streak, best_win_streak, _ = streaker.get_current_and_best(player.id, games=games)
+
+                # Track player with longest positive streak (current)
+                if current_streak > max_streak:
+                    max_streak = current_streak
+                    hottest_streak_player = player
+                
+                # Track player with best streak of all time
+                if best_win_streak > best_streak_all_time:
+                    best_streak_all_time = best_win_streak
+                    best_streak_player = player
+                
+                # Track player with longest negative streak (losing streak)
+                if current_streak < min_streak:
+                    min_streak = current_streak
+                    coldest_streak_player = player
+        except Exception as e:
+            # Gracefully handle missing stats module or other errors for backward compatibility
+            print(f"Warning: Could not calculate streaks: {e}")
+            hottest_streak_player = None
+            coldest_streak_player = None
+            max_streak = 0
+    
     return render_template('statistics.html', 
                          total_players=total_players,
                          total_games=total_games,
                          top_player=top_player,
-                         most_active=most_active)
+                         most_active=most_active,
+                         hottest_streak_player=hottest_streak_player,
+                         hottest_streak=max_streak,
+                         coldest_streak_player=coldest_streak_player,
+                         coldest_streak=min_streak,
+                         best_streak_player=best_streak_player,
+                         best_streak_all_time=best_streak_all_time)
 
 @app.route('/delete_player/<int:player_id>', methods=['POST'])
 def delete_player(player_id):
@@ -217,6 +304,50 @@ def delete_player(player_id):
     db.session.commit()
     flash(f'Player {player.name} deleted successfully!', 'success')
     return redirect(url_for('index'))
+
+
+@app.route('/delete_game/<int:game_id>', methods=['POST'])
+def delete_game(game_id):
+    """Delete a game and retract the ELO changes from the two players.
+
+    This operation only retracts the ELO change and updates simple stats
+    (games_played, wins, losses) for both players. It does not recompute
+    or alter other games' stored ELO fields — history entries remain as-is
+    except that this game record is removed.
+    """
+    game = Game.query.get_or_404(game_id)
+
+    # Compute deltas from the stored before/after values
+    delta1 = game.player1_elo_after - game.player1_elo_before
+    delta2 = game.player2_elo_after - game.player2_elo_before
+
+    # Load players (they should normally exist)
+    p1 = Player.query.get(game.player1_id)
+    p2 = Player.query.get(game.player2_id)
+
+    # Retract ELO and decrement stats safely
+    if p1:
+        p1.elo_rating = (p1.elo_rating or 0) - delta1
+        p1.games_played = max(0, (p1.games_played or 0) - 1)
+        if game.winner_id == p1.id:
+            p1.wins = max(0, (p1.wins or 0) - 1)
+        else:
+            p1.losses = max(0, (p1.losses or 0) - 1)
+
+    if p2:
+        p2.elo_rating = (p2.elo_rating or 0) - delta2
+        p2.games_played = max(0, (p2.games_played or 0) - 1)
+        if game.winner_id == p2.id:
+            p2.wins = max(0, (p2.wins or 0) - 1)
+        else:
+            p2.losses = max(0, (p2.losses or 0) - 1)
+
+    db.session.delete(game)
+    db.session.commit()
+
+    flash('Game deleted and ELO retracted from the affected players.', 'success')
+    # Redirect back to the referring page or recent games if unknown
+    return redirect(request.referrer or url_for('recent_games'))
 
 @app.route('/api/player/<int:player_id>/elo_history')
 def elo_history(player_id):

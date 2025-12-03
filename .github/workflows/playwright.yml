@@ -1,0 +1,80 @@
+name: Playwright Tests
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build the Docker image
+      run: docker build . --file Dockerfile --tag ping-pong-tracker:latest
+    - name: Save Docker image
+      run: docker save ping-pong-tracker:latest | gzip > docker-image.tar.gz
+    - name: Upload Docker image artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: docker-image
+        path: docker-image.tar.gz
+        retention-days: 1
+
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - uses: actions/checkout@v5
+    - name: Download Docker image artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: docker-image
+    - name: Load Docker image
+      run: docker load < docker-image.tar.gz
+    - name: Start Docker container
+      # Mount the repository `instance` folder into the container so the SQLite DB
+      # and other runtime files persist across container restarts and are visible
+      # to the workflow runner. Use the workspace path provided by Actions.
+      run: |
+        docker run -d \
+          --name app-container \
+          -p 3456:3456 \
+          -v ${{ github.workspace }}/instance:/app/instance \
+          ping-pong-tracker:latest
+    - name: Check container status
+      run: |
+        sleep 5
+        docker ps -a
+        docker logs app-container
+    - name: Wait for app to be healthy
+      run: |
+        for i in {1..60}; do
+          if curl -f http://localhost:3456/ > /dev/null 2>&1; then
+            echo "App is healthy"
+            exit 0
+          fi
+          echo "Waiting for app... ($i/60)"
+          sleep 1
+        done
+        echo "App failed to become healthy after 60 seconds"
+        docker logs app-container
+        exit 1
+    - uses: actions/setup-node@v5
+      with:
+        node-version: lts/*
+    - name: Install dependencies
+      run: npm ci
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+    - name: Run Playwright tests
+      run: npx playwright test
+    - uses: actions/upload-artifact@v4
+      if: ${{ !cancelled() }}
+      with:
+        name: playwright-report
+        path: playwright-report/
+        retention-days: 30
+    - name: Stop Docker container
+      if: always()
+      run: docker stop app-container && docker rm app-container

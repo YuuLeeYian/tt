@@ -440,10 +440,11 @@ table a {
 
 /* Statistics Page */
 .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    display: flex;
+    flex-wrap: nowrap;
     gap: 1.5rem;
     margin-bottom: 2rem;
+    overflow-x: auto;
 }
 
 .stat-box {
@@ -452,6 +453,8 @@ table a {
     border-radius: 0.5rem;
     box-shadow: var(--shadow);
     text-align: center;
+    flex: 1 1 0;
+    min-width: 150px;
 }
 
 .stat-box.highlight {
@@ -798,6 +801,99 @@ footer {
     cursor: pointer;
     transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 }
+
+/* Action menu (compact dropdown for per-row actions) */
+.action-menu {
+    position: relative;
+    display: inline-block;
+}
+.action-menu summary {
+    list-style: none;
+}
+.action-menu[open] summary {
+    background-color: #f3f4f6;
+}
+.action-list {
+    position: absolute;
+    right: 0;
+    margin-top: 0.5rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    z-index: 20;
+    min-width: 120px;
+}
+.action-list form { margin: 0; }
+.action-list button { width: 100%; text-align: left; }
+
+/* Compare control on player profile */
+.compare-row {
+    margin: 1rem 0 1.5rem 0;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+}
+.compare-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+}
+.compare-form label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-right: 0.5rem;
+}
+.compare-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.compare-select {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-color);
+    min-width: 160px;
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.compare-btn {
+    padding: 0.45rem 0.9rem;
+}
+
+/* ELO Card - Single prominent display */
+.elo-card-container {
+    display: flex;
+    justify-content: center;
+    margin: 1.5rem 0;
+}
+.elo-card {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+    padding: 2rem 3rem;
+    border-radius: 1rem;
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+    min-width: 200px;
+}
+.elo-value {
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 0.5rem;
+    line-height: 1;
+}
+.elo-label {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.9);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+}
+
 .period-btn:hover {
     background: #d1d5db;
 }
