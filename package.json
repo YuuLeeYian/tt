@@ -1,0 +1,19 @@
+{
+  "name": "tt",
+  "version": "1.0.0",
+  "description": "A Flask-based table tennis game tracker with ELO rating system.",
+  "main": "index.js",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git@code.siemens.com:industrial-edge/playground/edgecalibur/misc/tt.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "1.49.0",
+    "@types/node": "^24.10.1"
+  }
+}

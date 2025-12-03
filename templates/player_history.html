@@ -6,6 +6,14 @@
 <div class="page-header">
     <h2>📊 {{ player.name }}'s Profile</h2>
 </div>
+
+<div class="elo-card-container">
+    <div class="elo-card">
+        <div class="elo-value">{{ player.elo_rating }}</div>
+        <div class="elo-label">ELO Rating</div>
+    </div>
+</div>
+
 <!-- ELO Chart -->
 <details class="chart-card">
     <summary class="chart-toggle">
@@ -37,32 +45,62 @@
     </div>
 </details>
 
+
+<div class="compare-row">
+    <form method="get" action="" class="compare-form" role="search" aria-label="Compare players">
+        <label for="compare_id">Compare with</label>
+        <div class="compare-controls">
+            <select name="compare_id" id="compare_id" class="compare-select">
+                <option value="" {% if not compare_id %}selected{% endif %}>All</option>
+                {% for p in players %}
+                    {% if p.id != player.id %}
+                        <option value="{{ p.id }}" {% if compare_id and compare_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary btn-small compare-btn">Compare</button>
+        </div>
+    </form>
+</div>
+
 <div class="player-stats">
     <div class="stat-card">
-        <div class="stat-value">{{ player.elo_rating }}</div>
-        <div class="stat-label">ELO Rating</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ player.games_played }}</div>
+        <div class="stat-value">{{ games_played if games_played is defined else player.games_played }}</div>
         <div class="stat-label">Games Played</div>
     </div>
     <div class="stat-card">
-        <div class="stat-value wins">{{ player.wins }}</div>
+        <div class="stat-value wins">{{ wins if wins is defined else player.wins }}</div>
         <div class="stat-label">Wins</div>
     </div>
     <div class="stat-card">
-        <div class="stat-value losses">{{ player.losses }}</div>
+        <div class="stat-value losses">{{ losses if losses is defined else player.losses }}</div>
         <div class="stat-label">Losses</div>
     </div>
     <div class="stat-card">
         <div class="stat-value">
-            {% if player.games_played > 0 %}
-                {{ "%.1f"|format((player.wins / player.games_played * 100)) }}%
+            {% if (games_played is defined and games_played > 0) or player.games_played > 0 %}
+                {{ "%.1f"|format((win_rate if win_rate is defined else (player.wins / player.games_played * 100))) }}%
             {% else %}
                 0%
             {% endif %}
         </div>
         <div class="stat-label">Win Rate</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value {% if current_streak is defined and current_streak > 0 %}wins{% elif current_streak is defined and current_streak < 0 %}losses{% endif %}">
+            {% if current_streak is defined and current_streak > 0 %}
+                +{{ current_streak }}
+            {% elif current_streak is defined %}
+                {{ current_streak }}
+            {% else %}
+                0
+            {% endif %}
+        </div>
+        <div class="stat-label">Current Streak</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value wins">{{ best_streak if best_streak is defined else 0 }}</div>
+        <div class="stat-label">Best Win Streak</div>
     </div>
 </div>
 
@@ -98,30 +136,40 @@
                     {% endif %}
                 </td>
                 <td>
-                    {% if game.winner_id == player.id %}
+                    {% if game.winner_id is defined and game.winner_id == player.id %}
                         <span class="result-win">WIN</span>
-                    {% else %}
+                    {% elif game.winner_id is defined %}
                         <span class="result-loss">LOSS</span>
+                    {% else %}
+                        <span class="result-loss">—</span>
                     {% endif %}
                 </td>
                 <td class="elo-change">
-                    {% if game.player1_id == player.id %}
+                    {% if game.player1_id == player.id and game.player1_elo_after is defined and game.player1_elo_before is defined %}
                         {% set change = game.player1_elo_after - game.player1_elo_before %}
-                    {% else %}
+                        {% if change > 0 %}
+                            <span class="positive">+{{ change }}</span>
+                        {% else %}
+                            <span class="negative">{{ change }}</span>
+                        {% endif %}
+                    {% elif game.player2_id == player.id and game.player2_elo_after is defined and game.player2_elo_before is defined %}
                         {% set change = game.player2_elo_after - game.player2_elo_before %}
-                    {% endif %}
-                    
-                    {% if change > 0 %}
-                        <span class="positive">+{{ change }}</span>
+                        {% if change > 0 %}
+                            <span class="positive">+{{ change }}</span>
+                        {% else %}
+                            <span class="negative">{{ change }}</span>
+                        {% endif %}
                     {% else %}
-                        <span class="negative">{{ change }}</span>
+                        <span>—</span>
                     {% endif %}
                 </td>
                 <td>
-                    {% if game.player1_id == player.id %}
+                    {% if game.player1_id == player.id and game.player1_elo_after is defined %}
                         {{ game.player1_elo_after }}
-                    {% else %}
+                    {% elif game.player2_id == player.id and game.player2_elo_after is defined %}
                         {{ game.player2_elo_after }}
+                    {% else %}
+                        —
                     {% endif %}
                 </td>
             </tr>

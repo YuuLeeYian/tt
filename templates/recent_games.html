@@ -24,30 +24,34 @@
                 <td>{{ game.played_at.strftime('%Y-%m-%d %H:%M') }}</td>
                 <td>
                     <a href="{{ url_for('player_history', player_id=game.player1_id) }}">{{ game.player1.name }}</a>
-                    {% if game.winner_id == game.player1_id %}
+                    {% if game.winner_id is defined and game.winner_id == game.player1_id %}
                         <span class="winner-badge">W</span>
                     {% endif %}
                 </td>
                 <td>
                     <a href="{{ url_for('player_history', player_id=game.player2_id) }}">{{ game.player2.name }}</a>
-                    {% if game.winner_id == game.player2_id %}
+                    {% if game.winner_id is defined and game.winner_id == game.player2_id %}
                         <span class="winner-badge">W</span>
                     {% endif %}
                 </td>
                 <td class="elo-change">
-                    {% set change1 = game.player1_elo_after - game.player1_elo_before %}
-                    {% set change2 = game.player2_elo_after - game.player2_elo_before %}
-                    
-                    {% if change1 > 0 %}
-                        <span class="positive">+{{ change1 }}</span>
+                    {% if game.player1_elo_after is defined and game.player1_elo_before is defined and game.player2_elo_after is defined and game.player2_elo_before is defined %}
+                        {% set change1 = game.player1_elo_after - game.player1_elo_before %}
+                        {% set change2 = game.player2_elo_after - game.player2_elo_before %}
+                        
+                        {% if change1 > 0 %}
+                            <span class="positive">+{{ change1 }}</span>
+                        {% else %}
+                            <span class="negative">{{ change1 }}</span>
+                        {% endif %}
+                        /
+                        {% if change2 > 0 %}
+                            <span class="positive">+{{ change2 }}</span>
+                        {% else %}
+                            <span class="negative">{{ change2 }}</span>
+                        {% endif %}
                     {% else %}
-                        <span class="negative">{{ change1 }}</span>
-                    {% endif %}
-                    /
-                    {% if change2 > 0 %}
-                        <span class="positive">+{{ change2 }}</span>
-                    {% else %}
-                        <span class="negative">{{ change2 }}</span>
+                        <span>—</span>
                     {% endif %}
                 </td>
             </tr>
