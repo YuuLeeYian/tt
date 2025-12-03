@@ -8,6 +8,19 @@ jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    services:
+      app:
+        image: ping-pong-tracker:latest
+        build:
+          context: .
+          dockerfile: Dockerfile
+        ports:
+          - 3456:3456
+        options: >-
+          --health-cmd="curl -f http://localhost:3456/ || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     steps:
     - uses: actions/checkout@v5
     - uses: actions/setup-node@v5

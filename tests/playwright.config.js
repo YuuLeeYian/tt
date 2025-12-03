@@ -67,15 +67,6 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  // In CI, the server is started in before_script, so we skip webServer
-  ...(process.env.CI ? {} : {
-    webServer: {
-      command: 'python app.py',
-      url: 'http://localhost:3456',
-      reuseExistingServer: false,
-      timeout: 120 * 1000,
-    },
-  }),
 
   /* Update snapshots settings */
   expect: {
