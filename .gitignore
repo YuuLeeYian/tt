@@ -30,13 +30,26 @@ env/
 ENV/
 env.bak/
 venv.bak/
-
+.venv/
 # Flask
 instance/
 .webassets-cache
 
+# Node modules
+node_modules/
+test-results/
+tests-examples/
+playwright-report/
+playwright/.cache/
+
+# Cypress test outputs
+test/screenshots/
+test/videos/
+test/downloads/
+
 # Database
 *.db
+!tests/files/*.db
 *.sqlite
 *.sqlite3
 
@@ -62,3 +75,10 @@ htmlcov/
 
 # Logs
 *.log
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
